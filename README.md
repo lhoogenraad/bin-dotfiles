@@ -9,7 +9,7 @@ Personal shell scripts for productivity. Intended to be cloned into `~/bin` and 
 
 ### One-line setup (zshrc)
 ```bash
-cd ~ && git clone git@github.com:YOUR_USERNAME/bin-dotfiles.git bin && \
+cd ~ && git clone git@github.com:lhoogenraad/bin-dotfiles.git bin && \
 echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc && \
 source ~/.zshrc && \
 cd ~/bin && chmod +x *
@@ -21,7 +21,7 @@ cd ~/bin && chmod +x *
 
 ```bash
 cd ~
-git clone git@github.com:YOUR_USERNAME/bin-dotfiles.git bin
+git clone git@github.com:lhoogenraad/bin-dotfiles.git bin
 ```
 
 ### 2. Add ~/bin to PATH
