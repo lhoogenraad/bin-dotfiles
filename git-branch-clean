@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -e
+
+git fetch -p
+
+echo "Merged branches:"
+git branch --merged main | grep -v "main" | grep -v "\*" || true
+
+echo
+read -rp "Delete these branches? [y/N]: " confirm
+
+if [[ "$confirm" =~ ^[Yy]$ ]]; then
+  git branch --merged main | grep -v "main" | grep -v "\*" | xargs -n 1 git branch -d
+  echo "Cleaned up merged branches."
+else
+  echo "Cancelled."
+fi

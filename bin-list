@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -e
+
+BIN_DIR="${HOME}/bin"
+
+echo "Scripts in $BIN_DIR"
+echo "────────────────────────────"
+
+for file in "$BIN_DIR"/*; do
+  [ -f "$file" ] || continue
+  [ -x "$file" ] || continue
+
+  name=$(basename "$file")
+
+  # skip README or hidden files
+  if [[ "$name" == .* ]]; then
+    continue
+  fi
+
+  printf "• %s\n" "$name"
+done

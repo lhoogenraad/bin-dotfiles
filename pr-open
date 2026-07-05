@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+
+BRANCH=$(git branch --show-current)
+REPO_URL=$(git remote get-url origin | sed 's/.git$//')
+
+open "${REPO_URL}/compare/main...${BRANCH}?expand=1"
