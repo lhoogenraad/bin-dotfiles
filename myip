@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -e
+
+echo "Local IP:"
+ipconfig getifaddr en0 2>/dev/null || hostname -I
+
+echo
+echo "Public IP:"
+curl -s ifconfig.me
+echo

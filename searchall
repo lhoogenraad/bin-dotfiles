@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -e
+
+QUERY=""
+MODE="global"
+
+# parse flags
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c)
+      MODE="current"
+      shift
+      ;;
+    *)
+      QUERY="$1"
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$QUERY" ]; then
+  echo "Usage: searchall [-c] <filename>"
+  exit 1
+fi
+
+echo "Searching for: $QUERY"
+echo "Mode: $MODE"
+echo
+
+if [ "$MODE" = "current" ]; then
+  echo "📁 Searching current directory..."
+  find . -type f -iname "*$QUERY*" 2>/dev/null
+else
+  echo "🖥️ Searching system (this may take a while)..."
+
+  # safer macOS-friendly global search
+  # avoids /System noise + permission spam
+  find / \
+    \( -path /System -o -path /Volumes -o -path /dev -o -path /proc \) -prune \
+    -o -type f -iname "*$QUERY*" -print 2>/dev/null
+fi
