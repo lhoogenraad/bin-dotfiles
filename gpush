@@ -10,12 +10,48 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-if [ $# -eq 0 ]; then
-    echo "Usage: $(basename "$0") <commit message>"
+FORCE=0
+
+usage() {
+    cat <<EOF
+Usage:
+  $(basename "$0") [-f|--force] <commit message>
+
+Options:
+  -f, --force   Skip confirmation prompt and immediately commit & push
+  --help        Show this help message
+
+Example:
+  $(basename "$0") "fix: update login flow"
+  $(basename "$0") -f "fix: hotfix production issue"
+EOF
+}
+
+# Parse args
+ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f|--force)
+            FORCE=1
+            shift
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [ ${#ARGS[@]} -eq 0 ]; then
+    usage
     exit 1
 fi
 
-COMMIT_MESSAGE="$*"
+COMMIT_MESSAGE="${ARGS[*]}"
 
 # Ensure we're in a git repo
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
@@ -51,16 +87,18 @@ echo -e "${BLUE}Changes:${NC}"
 git status --short
 echo
 
-read -rp "Continue? [y/N]: " CONFIRM
+if [[ "$FORCE" -eq 0 ]]; then
+    read -rp "Continue? [y/N]: " CONFIRM
 
-case "$CONFIRM" in
-    [yY]|[yY][eE][sS])
-        ;;
-    *)
-        echo "Cancelled."
-        exit 0
-        ;;
-esac
+    case "$CONFIRM" in
+        [yY]|[yY][eE][sS])
+            ;;
+        *)
+            echo "Cancelled."
+            exit 0
+            ;;
+    esac
+fi
 
 echo
 echo -e "${YELLOW}Staging files...${NC}"
