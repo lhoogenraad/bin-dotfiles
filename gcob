@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    cat <<EOF
+Usage:
+  $(basename "$0") [-f|-c] <branch-name>
+
+Options:
+  -f    Create a feature branch (feat/<branch-name>)
+  -c    Create a chore branch (chore/<branch-name>)
+  --help  Show this help message
+
+Examples:
+  gcob login-page
+  gcob -f user-auth
+  gcob -c update-dependencies
+EOF
+}
+
+PREFIX=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f)
+            PREFIX="feat/"
+            shift
+            ;;
+        -c)
+            PREFIX="chore/"
+            shift
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [[ $# -ne 1 ]]; then
+    usage
+    exit 1
+fi
+
+BRANCH="${PREFIX}$1"
+
+echo "Creating and checking out branch:"
+echo "  $BRANCH"
+echo
+
+git checkout -b "$BRANCH"
+
+echo
+echo "✓ Switched to new branch '$BRANCH'"
