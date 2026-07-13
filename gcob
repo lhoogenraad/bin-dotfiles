@@ -8,14 +8,14 @@ Usage:
   $(basename "$0") [-f|-c] <branch-name>
 
 Options:
-  -f    Create a feature branch (feat/<branch-name>)
-  -c    Create a chore branch (chore/<branch-name>)
-  --help  Show this help message
+  -f        Create a feature branch (feat/<branch-name>)
+  -c        Create a chore branch (chore/<branch-name>)
+  --help    Show this help message
 
 Examples:
   gcob login-page
-  gcob -f user-auth
-  gcob -c update-dependencies
+  gcob -f add login page
+  gcob -c update dependencies
 EOF
 }
 
@@ -46,12 +46,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -lt 1 ]]; then
     usage
     exit 1
 fi
 
-BRANCH="${PREFIX}$1"
+# Join all remaining arguments and replace spaces with hyphens
+BRANCH_NAME="${*// /-}"
+BRANCH="${PREFIX}${BRANCH_NAME}"
 
 echo "Creating and checking out branch:"
 echo "  $BRANCH"
