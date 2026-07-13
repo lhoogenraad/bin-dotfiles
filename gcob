@@ -5,17 +5,19 @@ set -euo pipefail
 usage() {
     cat <<EOF
 Usage:
-  $(basename "$0") [-f|-c] <branch-name>
+  $(basename "$0") [-f|-c|-t] <branch-name>
 
 Options:
   -f        Create a feature branch (feat/<branch-name>)
   -c        Create a chore branch (chore/<branch-name>)
+  -t        Create a test branch (test/<branch-name>)
   --help    Show this help message
 
 Examples:
   gcob login-page
   gcob -f add login page
   gcob -c update dependencies
+  gcob -t test auth flow
 EOF
 }
 
@@ -29,6 +31,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -c)
             PREFIX="chore/"
+            shift
+            ;;
+        -t)
+            PREFIX="test/"
             shift
             ;;
         --help)
