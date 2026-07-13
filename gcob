@@ -51,8 +51,10 @@ if [[ $# -lt 1 ]]; then
     exit 1
 fi
 
-# Join all remaining arguments and replace spaces with hyphens
-BRANCH_NAME="${*// /-}"
+# Join all remaining arguments with hyphens
+BRANCH_NAME="$(printf '%s-' "$@")"
+BRANCH_NAME="${BRANCH_NAME%-}"
+
 BRANCH="${PREFIX}${BRANCH_NAME}"
 
 echo "Creating and checking out branch:"
