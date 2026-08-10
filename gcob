@@ -5,23 +5,34 @@ set -euo pipefail
 usage() {
     cat <<EOF
 Usage:
-  $(basename "$0") [-f|-c|-t] <branch-name>
+  $(basename "$0") [-f|-c|-t] [--no-prefix|--np|--force] <branch-name>
 
 Options:
-  -f        Create a feature branch (feat/<branch-name>)
-  -c        Create a chore branch (chore/<branch-name>)
-  -t        Create a test branch (test/<branch-name>)
-  --help    Show this help message
+  -f            Create a feature branch (feat/<branch-name>)
+  -c            Create a chore branch (chore/<branch-name>)
+  -t            Create a test branch (test/<branch-name>)
+  --no-prefix,
+  --np,
+  --force       Skip the ticket-prefix prompt (no DEV-XXX inserted)
+  --help        Show this help message
+
+By default you'll be prompted for a ticket prefix (default DEV) and
+ticket number, which are inserted into the branch name.
 
 Examples:
   gcob login-page
   gcob -f add login page
-  gcob -c update dependencies
-  gcob -t test auth flow
+    > Ticket prefix (default DEV):
+    > Ticket number: 837
+    Creates: feat/DEV-837-add-login-page
+
+  gcob -c --no-prefix update dependencies
+    Creates: chore/update-dependencies
 EOF
 }
 
 PREFIX=""
+SKIP_TICKET_PROMPT=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -35,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -t)
             PREFIX="test/"
+            shift
+            ;;
+        --no-prefix|--np|--force)
+            SKIP_TICKET_PROMPT=true
             shift
             ;;
         --help)
@@ -61,7 +76,18 @@ fi
 BRANCH_NAME="$(printf '%s-' "$@")"
 BRANCH_NAME="${BRANCH_NAME%-}"
 
-BRANCH="${PREFIX}${BRANCH_NAME}"
+TICKET=""
+if [[ "$SKIP_TICKET_PROMPT" == false ]]; then
+    read -rp "Ticket prefix (default DEV): " TICKET_PREFIX
+    TICKET_PREFIX="${TICKET_PREFIX:-DEV}"
+
+    read -rp "Ticket number: " TICKET_NUMBER
+    if [[ -n "$TICKET_NUMBER" ]]; then
+        TICKET="${TICKET_PREFIX}-${TICKET_NUMBER}-"
+    fi
+fi
+
+BRANCH="${PREFIX}${TICKET}${BRANCH_NAME}"
 
 echo "Creating and checking out branch:"
 echo "  $BRANCH"
