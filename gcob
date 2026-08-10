@@ -5,19 +5,26 @@ set -euo pipefail
 usage() {
     cat <<EOF
 Usage:
-  $(basename "$0") [-f|-c|-t] [--no-prefix|--np|--force] <branch-name>
+  $(basename "$0") [-f|-c|-t] [--no-prefix|--np|--force] [--prefix=X] [--number=N] <branch-name>
 
 Options:
-  -f            Create a feature branch (feat/<branch-name>)
-  -c            Create a chore branch (chore/<branch-name>)
-  -t            Create a test branch (test/<branch-name>)
+  -f                        Create a feature branch (feat/<branch-name>)
+  -c                        Create a chore branch (chore/<branch-name>)
+  -t                        Create a test branch (test/<branch-name>)
+  --prefix=X                Ticket prefix (e.g. DEV, JIRA). Skips the prefix prompt.
+  --number=N,
+  --ticket-number=N         Ticket number (e.g. 8532). Skips the number prompt.
   --no-prefix,
   --np,
-  --force       Skip the ticket-prefix prompt (no DEV-XXX inserted)
-  --help        Show this help message
+  --force                   Skip the ticket prompt entirely (no DEV-XXX inserted)
+  --help                    Show this help message
 
 By default you'll be prompted for a ticket prefix (default DEV) and
-ticket number, which are inserted into the branch name.
+ticket number, which are inserted into the branch name. Any prompt is
+skipped if its value was already supplied via flag or auto-detected.
+
+If one of the branch-name words already looks like a ticket (e.g.
+DEV-837), it's extracted automatically and both prompts are skipped.
 
 Examples:
   gcob login-page
@@ -26,6 +33,12 @@ Examples:
     > Ticket number: 837
     Creates: feat/DEV-837-add-login-page
 
+  gcob -f DEV-837 add flame feature
+    Creates: feat/DEV-837-add-flame-feature   (no prompts)
+
+  gcob -f --prefix=JIRA --number=42 fix login bug
+    Creates: feat/JIRA-42-fix-login-bug       (no prompts)
+
   gcob -c --no-prefix update dependencies
     Creates: chore/update-dependencies
 EOF
@@ -33,6 +46,8 @@ EOF
 
 PREFIX=""
 SKIP_TICKET_PROMPT=false
+CLI_TICKET_PREFIX=""
+CLI_TICKET_NUMBER=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -52,6 +67,14 @@ while [[ $# -gt 0 ]]; do
             SKIP_TICKET_PROMPT=true
             shift
             ;;
+        --prefix=*)
+            CLI_TICKET_PREFIX="${1#*=}"
+            shift
+            ;;
+        --number=*|--ticket-number=*)
+            CLI_TICKET_NUMBER="${1#*=}"
+            shift
+            ;;
         --help)
             usage
             exit 0
@@ -67,8 +90,38 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ "$SKIP_TICKET_PROMPT" == true && ( -n "$CLI_TICKET_PREFIX" || -n "$CLI_TICKET_NUMBER" ) ]]; then
+    echo "Error: --no-prefix/--np/--force cannot be combined with --prefix or --number/--ticket-number."
+    exit 1
+fi
+
+if [[ -n "$CLI_TICKET_NUMBER" && ! "$CLI_TICKET_NUMBER" =~ ^[0-9]+$ ]]; then
+    echo "Error: ticket number must be numeric: $CLI_TICKET_NUMBER"
+    exit 1
+fi
+
 if [[ $# -lt 1 ]]; then
     usage
+    exit 1
+fi
+
+# Auto-detect a ticket token (e.g. DEV-837) among the branch-name words,
+# unless one was already given via flag or the prompt is being skipped.
+if [[ "$SKIP_TICKET_PROMPT" == false && -z "$CLI_TICKET_PREFIX" && -z "$CLI_TICKET_NUMBER" ]]; then
+    REMAINING=()
+    for word in "$@"; do
+        if [[ -z "$CLI_TICKET_NUMBER" && "$word" =~ ^([A-Za-z][A-Za-z0-9]*)-([0-9]+)$ ]]; then
+            CLI_TICKET_PREFIX="${BASH_REMATCH[1]}"
+            CLI_TICKET_NUMBER="${BASH_REMATCH[2]}"
+            continue
+        fi
+        REMAINING+=("$word")
+    done
+    set -- "${REMAINING[@]}"
+fi
+
+if [[ $# -lt 1 ]]; then
+    echo "Error: no branch description left after removing the ticket token."
     exit 1
 fi
 
@@ -78,12 +131,22 @@ BRANCH_NAME="${BRANCH_NAME%-}"
 
 TICKET=""
 if [[ "$SKIP_TICKET_PROMPT" == false ]]; then
-    read -rp "Ticket prefix (default DEV): " TICKET_PREFIX
-    TICKET_PREFIX="${TICKET_PREFIX:-DEV}"
+    if [[ -z "$CLI_TICKET_PREFIX" ]]; then
+        read -rp "Ticket prefix (default DEV): " CLI_TICKET_PREFIX
+        CLI_TICKET_PREFIX="${CLI_TICKET_PREFIX:-DEV}"
+    fi
 
-    read -rp "Ticket number: " TICKET_NUMBER
-    if [[ -n "$TICKET_NUMBER" ]]; then
-        TICKET="${TICKET_PREFIX}-${TICKET_NUMBER}-"
+    if [[ -z "$CLI_TICKET_NUMBER" ]]; then
+        read -rp "Ticket number: " CLI_TICKET_NUMBER
+        if [[ -n "$CLI_TICKET_NUMBER" && ! "$CLI_TICKET_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Error: ticket number must be numeric: $CLI_TICKET_NUMBER"
+            exit 1
+        fi
+    fi
+
+    if [[ -n "$CLI_TICKET_NUMBER" ]]; then
+        CLI_TICKET_PREFIX="$(printf '%s' "$CLI_TICKET_PREFIX" | tr '[:lower:]' '[:upper:]')"
+        TICKET="${CLI_TICKET_PREFIX}-${CLI_TICKET_NUMBER}-"
     fi
 fi
 
