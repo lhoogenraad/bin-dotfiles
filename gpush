@@ -68,8 +68,8 @@ else
     UPSTREAM="(no upstream configured)"
 fi
 
-# Check for changes
-if git diff --quiet && git diff --cached --quiet; then
+# Check for changes (includes untracked files, unlike `git diff`)
+if [[ -z "$(git status --porcelain)" ]]; then
     echo -e "${YELLOW}Nothing to commit.${NC}"
     exit 0
 fi
@@ -102,7 +102,7 @@ fi
 
 echo
 echo -e "${YELLOW}Staging files...${NC}"
-git add .
+git add -A
 
 echo -e "${YELLOW}Creating commit...${NC}"
 git commit -m "$COMMIT_MESSAGE"
