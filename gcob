@@ -2,10 +2,31 @@
 
 set -euo pipefail
 
+# Team/personal default ticket prefix. Override by exporting GCOB_DEFAULT_PREFIX
+# yourself, or by setting it in ~/.gcobrc (a plain shell file that gets sourced).
+# An already-exported GCOB_DEFAULT_PREFIX takes precedence over ~/.gcobrc.
+if [[ -z "${GCOB_DEFAULT_PREFIX:-}" && -f "$HOME/.gcobrc" ]]; then
+    # shellcheck disable=SC1090
+    source "$HOME/.gcobrc"
+fi
+DEFAULT_TICKET_PREFIX="${GCOB_DEFAULT_PREFIX:-DEV}"
+
+# Strip/replace characters that are invalid in a git ref, then collapse
+# repeated separators and trim leading/trailing separators.
+sanitize_branch_part() {
+    local s="$1"
+    s="$(printf '%s' "$s" | tr -c 'A-Za-z0-9._/-' '-')"
+    while [[ "$s" == *--* ]]; do s="${s//--/-}"; done
+    while [[ "$s" == *..* ]]; do s="${s//../.}"; done
+    while [[ "$s" == .* || "$s" == -* || "$s" == /* ]]; do s="${s:1}"; done
+    while [[ "$s" == *. || "$s" == *- || "$s" == */ ]]; do s="${s%?}"; done
+    printf '%s' "$s"
+}
+
 usage() {
     cat <<EOF
 Usage:
-  $(basename "$0") [-f|-c|-t] [--no-prefix|--np|--force] [--prefix=X] [--number=N] <branch-name>
+  $(basename "$0") [-f|-c|-t] [--no-prefix|--np|--force] [--prefix=X] [--number=N] [--dry-run] <branch-name>
 
 Options:
   -f                        Create a feature branch (feat/<branch-name>)
@@ -17,19 +38,25 @@ Options:
   --no-prefix,
   --np,
   --force                   Skip the ticket prompt entirely (no DEV-XXX inserted)
+  --dry-run, --dry          Print the branch name without prompting or creating it
   --help                    Show this help message
 
-By default you'll be prompted for a ticket prefix (default DEV) and
+By default you'll be prompted for a ticket prefix (default $DEFAULT_TICKET_PREFIX) and
 ticket number, which are inserted into the branch name. Any prompt is
 skipped if its value was already supplied via flag or auto-detected.
+Set the default prefix for your team/yourself via ~/.gcobrc or the
+GCOB_DEFAULT_PREFIX env var instead of retyping it every time.
 
 If one of the branch-name words already looks like a ticket (e.g.
 DEV-837), it's extracted automatically and both prompts are skipped.
 
+Characters that aren't valid in a git branch name (spaces aside, since
+words are hyphen-joined) are stripped or replaced, e.g. "wip: fix!" -> "wip-fix".
+
 Examples:
   gcob login-page
   gcob -f add login page
-    > Ticket prefix (default DEV):
+    > Ticket prefix (default $DEFAULT_TICKET_PREFIX):
     > Ticket number: 837
     Creates: feat/DEV-837-add-login-page
 
@@ -41,6 +68,9 @@ Examples:
 
   gcob -c --no-prefix update dependencies
     Creates: chore/update-dependencies
+
+  gcob -f --dry-run DEV-837 add flame feature
+    [dry run] feat/DEV-837-add-flame-feature  (nothing created)
 EOF
 }
 
@@ -48,6 +78,7 @@ PREFIX=""
 SKIP_TICKET_PROMPT=false
 CLI_TICKET_PREFIX=""
 CLI_TICKET_NUMBER=""
+DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -73,6 +104,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --number=*|--ticket-number=*)
             CLI_TICKET_NUMBER="${1#*=}"
+            shift
+            ;;
+        --dry-run|--dry)
+            DRY_RUN=true
             shift
             ;;
         --help)
@@ -128,12 +163,17 @@ fi
 # Join all remaining arguments with hyphens
 BRANCH_NAME="$(printf '%s-' "$@")"
 BRANCH_NAME="${BRANCH_NAME%-}"
+BRANCH_NAME="$(sanitize_branch_part "$BRANCH_NAME")"
 
-TICKET=""
-if [[ "$SKIP_TICKET_PROMPT" == false ]]; then
+if [[ -z "$BRANCH_NAME" ]]; then
+    echo "Error: branch name is empty after removing invalid characters."
+    exit 1
+fi
+
+if [[ "$SKIP_TICKET_PROMPT" == false && "$DRY_RUN" == false ]]; then
     if [[ -z "$CLI_TICKET_PREFIX" ]]; then
-        read -rp "Ticket prefix (default DEV): " CLI_TICKET_PREFIX
-        CLI_TICKET_PREFIX="${CLI_TICKET_PREFIX:-DEV}"
+        read -rp "Ticket prefix (default $DEFAULT_TICKET_PREFIX): " CLI_TICKET_PREFIX
+        CLI_TICKET_PREFIX="${CLI_TICKET_PREFIX:-$DEFAULT_TICKET_PREFIX}"
     fi
 
     if [[ -z "$CLI_TICKET_NUMBER" ]]; then
@@ -143,14 +183,22 @@ if [[ "$SKIP_TICKET_PROMPT" == false ]]; then
             exit 1
         fi
     fi
+fi
 
-    if [[ -n "$CLI_TICKET_NUMBER" ]]; then
-        CLI_TICKET_PREFIX="$(printf '%s' "$CLI_TICKET_PREFIX" | tr '[:lower:]' '[:upper:]')"
-        TICKET="${CLI_TICKET_PREFIX}-${CLI_TICKET_NUMBER}-"
-    fi
+TICKET=""
+if [[ -n "$CLI_TICKET_NUMBER" ]]; then
+    CLI_TICKET_PREFIX="${CLI_TICKET_PREFIX:-$DEFAULT_TICKET_PREFIX}"
+    CLI_TICKET_PREFIX="$(sanitize_branch_part "$CLI_TICKET_PREFIX" | tr '[:lower:]' '[:upper:]')"
+    TICKET="${CLI_TICKET_PREFIX}-${CLI_TICKET_NUMBER}-"
 fi
 
 BRANCH="${PREFIX}${TICKET}${BRANCH_NAME}"
+
+if [[ "$DRY_RUN" == true ]]; then
+    echo "[dry run] Would create and check out branch:"
+    echo "  $BRANCH"
+    exit 0
+fi
 
 echo "Creating and checking out branch:"
 echo "  $BRANCH"
